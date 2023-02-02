@@ -21,7 +21,7 @@ final class ConcurrentLRUCache[K, V] private (
     (for {
       optionStart <- self.startRef.get
       optionEnd   <- self.endRef.get
-      _           <- STM.ifM(self.items.contains(key))(updateItem(key, value), addNewItem(key, value, optionStart, optionEnd))
+      _           <- ZSTM.ifSTM(self.items.contains(key))(updateItem(key, value), addNewItem(key, value, optionStart, optionEnd))
     } yield ()).commitEither.orDie
 
   val getStatus: UIO[(Map[K, CacheItem[K, V]], Option[K], Option[K])] =
@@ -38,7 +38,7 @@ final class ConcurrentLRUCache[K, V] private (
 
   private def addNewItem(key: K, value: V, optionStart: Option[K], optionEnd: Option[K]): STM[Error, Unit] = {
     val newCacheItem = CacheItem[K, V](value, None, None)
-    STM.ifM(self.items.keys.map(_.length < self.capacity))(
+    ZSTM.ifSTM(self.items.keys.map(_.length < self.capacity))(
       self.items.put(key, newCacheItem) *> addKeyToStartOfList(key),
       replaceEndCacheItem(key, newCacheItem)
     )
@@ -110,7 +110,7 @@ final class ConcurrentLRUCache[K, V] private (
   private val clearStartAndEnd: STM[Nothing, Unit] = (self.startRef.set(None) *> self.endRef.set(None))
 
   private def getExistingCacheItem(key: K): STM[Error, CacheItem[K, V]] =
-    STM.require(new Error(s"Key does not exist: $key"))(self.items.get(key))
+    self.items.get(key).someOrFail(new Error(s"Key does not exist: $key"))
 }
 
 object ConcurrentLRUCache {

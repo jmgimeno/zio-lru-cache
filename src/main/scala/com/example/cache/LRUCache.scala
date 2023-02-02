@@ -20,7 +20,7 @@ final class LRUCache[K, V] private (
     (for {
       optionStart <- self.startRef.get
       optionEnd   <- self.endRef.get
-      _ <- ZIO.ifM(self.itemsRef.get.map(_.contains(key)))(
+      _ <- ZIO.ifZIO(self.itemsRef.get.map(_.contains(key)))(
             updateItem(key, value),
             addNewItem(key, value, optionStart, optionEnd)
           )
@@ -40,7 +40,7 @@ final class LRUCache[K, V] private (
 
   private def addNewItem(key: K, value: V, optionStart: Option[K], optionEnd: Option[K]): IO[Error, Unit] = {
     val newCacheItem = CacheItem[K, V](value, None, None)
-    ZIO.ifM(self.itemsRef.get.map(_.size < self.capacity))(
+    ZIO.ifZIO(self.itemsRef.get.map(_.size < self.capacity))(
       self.itemsRef.update(_ + (key -> newCacheItem)) *> addKeyToStartOfList(key),
       replaceEndCacheItem(key, newCacheItem)
     )
@@ -110,7 +110,7 @@ final class LRUCache[K, V] private (
   private val clearStartAndEnd: UIO[Unit] = self.startRef.set(None) *> self.endRef.set(None)
 
   private def getExistingCacheItem(key: K): IO[Error, CacheItem[K, V]] =
-    ZIO.require(new Error(s"Key does not exist: $key"))(self.itemsRef.get.map(_.get(key)))
+    self.itemsRef.get.map(_.get(key)).someOrFail(new Error(s"Key does not exist: $key"))
 }
 
 object LRUCache {

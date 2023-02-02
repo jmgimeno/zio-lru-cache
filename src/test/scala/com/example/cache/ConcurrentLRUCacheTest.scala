@@ -1,19 +1,17 @@
 package com.example.cache
 
-import zio.ZIO
-import zio.console._
+import zio._
 import zio.test.Assertion._
 import zio.test._
-import zio.test.environment.TestConsole
 
-object ConcurrentLRUCacheTest extends DefaultRunnableSpec {
+object ConcurrentLRUCacheTest extends ZIOSpecDefault {
   def spec = suite("ConcurrentLRUCache")(
-    testM("can't be created with non-positive capacity") {
-      assertM(ConcurrentLRUCache.make[Int, Int](0).run)(
+    test("can't be created with non-positive capacity") {
+      assertZIO(ConcurrentLRUCache.make[Int, Int](0).exit)(
         fails(hasMessage(equalTo("Capacity must be a positive number!")))
       )
     },
-    testM("works as expected") {
+    test("works as expected") {
       val expectedOutput = Vector(
         "Putting (1, 1)\n",
         "Putting (2, 2)\n",
@@ -44,17 +42,18 @@ object ConcurrentLRUCacheTest extends DefaultRunnableSpec {
         output   <- TestConsole.output
       } yield {
         assert(output)(equalTo(expectedOutput))
+
       }
     }
   )
 
-  private def get[K, V](concurrentLruCache: ConcurrentLRUCache[K, V], key: K): ZIO[Console, Nothing, Unit] =
+  private def get[K, V](concurrentLruCache: ConcurrentLRUCache[K, V], key: K): ZIO[Any, Nothing, Unit] =
     (for {
-      _ <- putStrLn(s"Getting key: $key")
+      _ <- Console.printLine(s"Getting key: $key")
       v <- concurrentLruCache.get(key)
-      _ <- putStrLn(s"Obtained value: $v")
-    } yield ()).catchAll(ex => putStrLn(ex.getMessage))
+      _ <- Console.printLine(s"Obtained value: $v")
+    } yield ()).catchAll(ex => Console.printLine(ex.getMessage).orDie)
 
-  private def put[K, V](concurrentLruCache: ConcurrentLRUCache[K, V], key: K, value: V): ZIO[Console, Nothing, Unit] =
-    putStrLn(s"Putting ($key, $value)") *> concurrentLruCache.put(key, value)
+  private def put[K, V](concurrentLruCache: ConcurrentLRUCache[K, V], key: K, value: V): ZIO[Any, Nothing, Unit] =
+    Console.printLine(s"Putting ($key, $value)").orDie *> concurrentLruCache.put(key, value)
 }
