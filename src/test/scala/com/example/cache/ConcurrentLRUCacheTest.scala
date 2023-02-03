@@ -7,7 +7,7 @@ import zio.test._
 object ConcurrentLRUCacheTest extends ZIOSpecDefault {
   def spec = suite("ConcurrentLRUCache")(
     test("can't be created with non-positive capacity") {
-      assertZIO(ConcurrentLRUCache.make[Int, Int](0).exit)(
+      assertZIO(STMLRUCache.make[Int, Int](0).exit)(
         fails(hasMessage(equalTo("Capacity must be a positive number!")))
       )
     },
@@ -29,7 +29,7 @@ object ConcurrentLRUCacheTest extends ZIOSpecDefault {
         "Obtained value: 4\n"
       )
       for {
-        lruCache <- ConcurrentLRUCache.make[Int, Int](2)
+        lruCache <- STMLRUCache.make[Int, Int](2)
         _        <- put(lruCache, 1, 1)
         _        <- put(lruCache, 2, 2)
         _        <- get(lruCache, 1)
@@ -47,13 +47,13 @@ object ConcurrentLRUCacheTest extends ZIOSpecDefault {
     }
   )
 
-  private def get[K, V](concurrentLruCache: ConcurrentLRUCache[K, V], key: K): ZIO[Any, Nothing, Unit] =
+  private def get[K, V](concurrentLruCache: STMLRUCache[K, V], key: K): ZIO[Any, Nothing, Unit] =
     (for {
       _ <- Console.printLine(s"Getting key: $key")
       v <- concurrentLruCache.get(key)
       _ <- Console.printLine(s"Obtained value: $v")
     } yield ()).catchAll(ex => Console.printLine(ex.getMessage).orDie)
 
-  private def put[K, V](concurrentLruCache: ConcurrentLRUCache[K, V], key: K, value: V): ZIO[Any, Nothing, Unit] =
+  private def put[K, V](concurrentLruCache: STMLRUCache[K, V], key: K, value: V): ZIO[Any, Nothing, Unit] =
     Console.printLine(s"Putting ($key, $value)").orDie *> concurrentLruCache.put(key, value)
 }

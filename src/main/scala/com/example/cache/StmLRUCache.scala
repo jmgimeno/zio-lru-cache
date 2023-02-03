@@ -3,12 +3,12 @@ package com.example.cache
 import zio._
 import zio.stm._
 
-final class ConcurrentLRUCache[K, V] private (
+final class STMLRUCache[K, V] private (
   private val capacity: Int,
   private val items: TMap[K, CacheItem[K, V]],
   private val startRef: TRef[Option[K]],
   private val endRef: TRef[Option[K]]
-) { self =>
+) extends LRUCache[K, V] { self =>
 
   def get(key: K): IO[NoSuchElementException, V] =
     (for {
@@ -113,14 +113,14 @@ final class ConcurrentLRUCache[K, V] private (
     self.items.get(key).someOrFail(new Error(s"Key does not exist: $key"))
 }
 
-object ConcurrentLRUCache {
-  def make[K, V](capacity: Int): IO[IllegalArgumentException, ConcurrentLRUCache[K, V]] =
+object STMLRUCache {
+  def make[K, V](capacity: Int): IO[IllegalArgumentException, STMLRUCache[K, V]] =
     if (capacity > 0) {
       (for {
         itemsRef <- TMap.empty[K, CacheItem[K, V]]
         startRef <- TRef.make(Option.empty[K])
         endRef   <- TRef.make(Option.empty[K])
-      } yield new ConcurrentLRUCache[K, V](capacity, itemsRef, startRef, endRef)).commit
+      } yield new STMLRUCache[K, V](capacity, itemsRef, startRef, endRef)).commit
     } else {
       ZIO.fail(new IllegalArgumentException("Capacity must be a positive number!"))
     }

@@ -3,8 +3,19 @@ package com.example
 import zio._
 import cache._
 
+type IntLRUCache = LRUCache[Int, Int]
+
+def getInt(key: Int): ZIO[IntLRUCache, NoSuchElementException, Int] =
+  ZIO.serviceWithZIO(_.get(key))
+
+def putInt(key: Int, value: Int): ZIO[IntLRUCache, Nothing, Unit] =
+  ZIO.serviceWithZIO(_.put(key, value))
+
+val getCacheStatus: ZIO[IntLRUCache, Nothing, (Map[Int, CacheItem[Int, Int]], Option[Int], Option[Int])] =
+  ZIO.serviceWithZIO(_.getStatus)
+
 object UseLRUCacheWithOneFiber extends ZIOAppDefault {
-  val program: ZIO[IntLRUCacheEnv, Throwable, Int] =
+  val program: ZIO[IntLRUCache, Throwable, Int] =
     for {
       _ <- put(1, 1)
       _ <- put(2, 2)
@@ -20,32 +31,33 @@ object UseLRUCacheWithOneFiber extends ZIOAppDefault {
   val run =
     program
       .provide(
-        ZLayer.succeed(2),
-        IntLRUCacheEnv.Service.zioRefImpl
+        ZLayer.fromZIO {
+          RefsLRUCache.make[Int, Int](2)
+        }
       )
       .catchAll(ex => Console.printLine(ex.getMessage).orDie *> ZIO.succeed(1))
 
-  private def get(key: Int): RIO[IntLRUCacheEnv, Unit] =
+  private def get(key: Int): RIO[IntLRUCache, Unit] =
     (for {
       _ <- Console.printLine(s"Getting key: $key").orDie
       v <- getInt(key)
       _ <- Console.printLine(s"Obtained value: $v").orDie
     } yield ()).catchAll(ex => Console.printLine(ex.getMessage).orDie)
 
-  private def put(key: Int, value: Int): URIO[IntLRUCacheEnv, Unit] =
+  private def put(key: Int, value: Int): URIO[IntLRUCache, Unit] =
     Console.printLine(s"Putting ($key, $value)").orDie *> putInt(key, value)
 }
 
 object UseLRUCacheWithMultipleFibers extends ZIOAppDefault {
 
-  val producer: URIO[IntLRUCacheEnv, Unit] =
+  val producer: URIO[IntLRUCache, Unit] =
     for {
       number <- Random.nextIntBounded(100)
       _      <- Console.printLine(s"Producing ($number, $number)").orDie
       _      <- putInt(number, number)
     } yield ()
 
-  val consumer: URIO[IntLRUCacheEnv, Unit] =
+  val consumer: URIO[IntLRUCache, Unit] =
     (for {
       key   <- Random.nextIntBounded(100)
       _     <- Console.printLine(s"Consuming key: $key")
@@ -53,7 +65,7 @@ object UseLRUCacheWithMultipleFibers extends ZIOAppDefault {
       _     <- Console.printLine(s"Consumed value: $value")
     } yield ()).catchAll(ex => Console.printLine(ex.getMessage).orDie)
 
-  val reporter: ZIO[IntLRUCacheEnv, NoSuchElementException, Unit] =
+  val reporter: ZIO[IntLRUCache, NoSuchElementException, Unit] =
     for {
       status                          <- getCacheStatus
       (items, optionStart, optionEnd) = status
@@ -71,22 +83,23 @@ object UseLRUCacheWithMultipleFibers extends ZIOAppDefault {
   val run =
     program
       .provide(
-        ZLayer.succeed(3),
-        IntLRUCacheEnv.Service.zioRefImpl
+        ZLayer.fromZIO {
+          RefsLRUCache.make[Int, Int](3)
+        }
       )
       .catchAll(ex => Console.printLine(ex.getMessage).orDie *> ZIO.succeed(1))
 }
 
 object UseConcurrentLRUCacheWithMultipleFibers extends ZIOAppDefault {
 
-  val producer: URIO[IntLRUCacheEnv, Unit] =
+  val producer: URIO[IntLRUCache, Unit] =
     for {
       number <- Random.nextIntBounded(100)
       _      <- Console.printLine(s"Producing ($number, $number)").orDie
       _      <- putInt(number, number)
     } yield ()
 
-  val consumer: URIO[IntLRUCacheEnv, Unit] =
+  val consumer: URIO[IntLRUCache, Unit] =
     (for {
       key   <- Random.nextIntBounded(100)
       _     <- Console.printLine(s"Consuming key: $key").orDie
@@ -94,7 +107,7 @@ object UseConcurrentLRUCacheWithMultipleFibers extends ZIOAppDefault {
       _     <- Console.printLine(s"Consumed value: $value").orDie
     } yield ()).catchAll(ex => Console.printLine(ex.getMessage).orDie)
 
-  val reporter: ZIO[IntLRUCacheEnv, NoSuchElementException, Unit] =
+  val reporter: ZIO[IntLRUCache, NoSuchElementException, Unit] =
     for {
       status                          <- getCacheStatus
       (items, optionStart, optionEnd) = status
@@ -112,8 +125,9 @@ object UseConcurrentLRUCacheWithMultipleFibers extends ZIOAppDefault {
   val run =
     program
       .provide(
-        ZLayer.succeed(3),
-        IntLRUCacheEnv.Service.zioStmImpl
+        ZLayer.fromZIO {
+          STMLRUCache.make[Int, Int](3)
+        }
       )
       .catchAll(ex => Console.printLine(ex.getMessage) *> ZIO.succeed(1))
 }

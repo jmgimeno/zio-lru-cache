@@ -1,4 +1,4 @@
-val scalaVer = "2.13.10"
+val scalaVer = "3.2.2"
 
 val zioVersion = "2.0.6"
 
